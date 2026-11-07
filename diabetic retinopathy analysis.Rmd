@@ -1,0 +1,270 @@
+
+---
+title: "Diabetic Retinopathy Data Analysis"
+output: pdf_document
+date: "2026-11-05"
+---
+
+## 1. Dataset
+
+```{r}
+Retinopathy_Debrecen <- read.csv(
+  "C:/Users/ZahraPc/Downloads/archive (2)/Retinopathy_Debrecen.csv",
+  header = TRUE
+)
+```
+## 2. Dataset Structure and Variables
+
+```{r}
+str(Retinopathy_Debrecen)
+names(Retinopathy_Debrecen)
+head(Retinopathy_Debrecen, 15)
+```
+## 3. User-Defined Function
+
+```{r}
+retinopathy_status <- function(x) {
+  ifelse(x == 1, "Signs Present", "No Signs")
+}
+
+Retinopathy_Debrecen$Status <- retinopathy_status(
+  Retinopathy_Debrecen$class
+)
+
+table(Retinopathy_Debrecen$Status)
+```
+
+
+
+## 4. Filtering Data Using Logical Criteria
+
+```{r}
+retinopathy_filtered <- subset(
+  Retinopathy_Debrecen,
+  class == 1 & quality == 1
+)
+
+head(retinopathy_filtered)
+nrow(retinopathy_filtered)
+
+```
+
+## 5. Dependent and Independent Variables
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+Retinopathy_Debrecen$ID <- seq_len(nrow(Retinopathy_Debrecen))
+
+dependent <- Retinopathy_Debrecen %>%
+  select(ID, class)
+
+independent <- Retinopathy_Debrecen %>%
+  select(ID, ma1, ma2, ma3)
+independent_long <- pivot_longer(
+  independent,
+  cols = c(ma1, ma2, ma3),
+  names_to = "Measurement",
+  values_to = "Value"
+)
+
+independent_wide <- pivot_wider(
+  independent_long,
+  names_from = Measurement,
+  values_from = Value
+)
+
+combined_data <- inner_join(
+  dependent,
+  independent_wide,
+  by = "ID"
+)
+
+head(combined_data)
+
+
+```
+
+## 6. Removing Missing Values
+```{r}
+# Count missing values in each column
+colSums(is.na(Retinopathy_Debrecen))
+
+# Remove rows containing missing values
+retinopathy_clean <- na.omit(Retinopathy_Debrecen)
+
+# Compare rows before and after cleaning
+nrow(Retinopathy_Debrecen)
+nrow(retinopathy_clean)
+
+```
+
+## 7. Identifying and Removing Duplicate Data
+
+```{r}
+# Check duplicates using the original dataset columns
+original_columns <- setdiff(
+  names(retinopathy_clean), c("ID", "Status")
+)
+
+# Count duplicate records
+sum(duplicated(retinopathy_clean[original_columns]))
+
+# Remove duplicate records
+retinopathy_clean <- retinopathy_clean[
+  !duplicated(retinopathy_clean[original_columns]), ]
+
+# Display remaining records
+nrow(retinopathy_clean)
+```
+
+## 8. Reordering Rows in Descending Order
+
+```{r}
+# Sort retinal measurements in descending order
+retinopathy_sorted <- retinopathy_clean %>%
+  arrange(desc(ma1), desc(ma2))
+
+# Display the first 10 sorted records
+head(retinopathy_sorted, 10)
+```
+
+
+## 9. Renaming Column Names
+
+```{r}
+# Rename selected columns
+retinopathy_clean <- retinopathy_clean %>%
+  rename(
+    Image_Quality = quality,
+    Pre_Screening = pre_screening,
+    Retinopathy_Outcome = class
+  )
+
+# Display updated column names
+names(retinopathy_clean)
+```
+
+
+## 10. Adding New Variables Using Mathematical Functions
+
+```{r}
+# Create new variables using mathematical calculations
+retinopathy_clean <- retinopathy_clean %>%
+  mutate(
+    ma1_Doubled = ma1 * 2,
+    ma2_Average = (ma1 + ma2) / 2
+  )
+
+# Display the original and calculated variables
+head(retinopathy_clean[, c("ma1", "ma2",
+                           "ma1_Doubled", "ma2_Average")])
+
+```
+
+## 11. Creating a Training Set
+
+```{r}
+# Set a seed for reproducible random results
+set.seed(123)
+
+# Randomly select 70% of the records for training
+train_index <- sample(
+  seq_len(nrow(retinopathy_clean)),
+  size = floor(0.7 * nrow(retinopathy_clean))
+)
+
+# Create training and testing datasets
+train_set <- retinopathy_clean[train_index, ]
+test_set <- retinopathy_clean[-train_index, ]
+
+# Display dataset dimensions
+dim(train_set)
+dim(test_set)
+```
+
+
+## 12. Summary Statistics
+
+```{r}
+# Display summary statistics for the cleaned dataset
+summary(retinopathy_clean)
+```
+
+## 13. Mean, Median, Mode and Range
+
+```{r}
+# Calculate mean and median
+mean_ma1 <- mean(retinopathy_clean$ma1)
+median_ma1 <- median(retinopathy_clean$ma1)
+
+# Create a user-defined function to calculate mode
+get_mode <- function(x) {
+  values <- unique(x)
+  values[which.max(tabulate(match(x, values)))]
+}
+
+# Calculate mode and range
+mode_ma1 <- get_mode(retinopathy_clean$ma1)
+range_ma1 <- range(retinopathy_clean$ma1)
+
+# Display results
+mean_ma1
+median_ma1
+mode_ma1
+range_ma1
+```
+
+
+## 14. Scatter Plot: ma1 vs ma2
+
+```{r}
+library(ggplot2)
+
+ggplot(retinopathy_clean, aes(x = ma1, y = ma2)) +
+  geom_point(color = "steelblue", alpha = 0.6) +
+  labs(
+    title = "Relationship Between Retinal Measurements ma1 and ma2",
+    x = "ma1 Retinal Measurement",
+    y = "ma2 Retinal Measurement"
+  )
+```
+
+
+## 15. Bar Plot: Diabetic Retinopathy Outcomes
+
+```{r}
+# Count records by retinopathy outcome
+outcome_counts <- retinopathy_clean %>%
+  group_by(Retinopathy_Outcome) %>%
+  summarise(Count = n())
+
+# Create a bar plot
+ggplot(outcome_counts,
+       aes(x = factor(Retinopathy_Outcome),
+           y = Count)) +
+  geom_col(fill = "steelblue") +
+  labs(
+    title = "Diabetic Retinopathy Outcomes",
+    x = "Retinopathy Outcome (0 = No Signs, 1 = Signs Present)",
+    y = "Number of Records"
+  )
+```
+
+
+
+## 16. Pearson Correlation Between ma1 and ma2
+
+```{r}
+# Calculate Pearson correlation coefficient
+cor(retinopathy_clean$ma1,
+    retinopathy_clean$ma2,
+    method = "pearson")
+
+# Perform Pearson correlation test
+cor.test(retinopathy_clean$ma1,
+         retinopathy_clean$ma2,
+         method = "pearson")
+```
+
